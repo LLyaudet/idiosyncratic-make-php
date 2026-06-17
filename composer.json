@@ -1,0 +1,21 @@
+{
+  "name": "llyaudet/idiosyncratic-make-php",
+  "description":
+    "Replace Makefiles micro-language with PHP and a few functions.",
+  "keywords": ["Make", "Makefile", "PHP"],
+  "type": "library",
+  "license": "LGPLv3+",
+  "authors": [
+    {
+      "name": "Laurent Lyaudet",
+      "email": "Laurent.Lyaudet@gmail.com",
+      "homepage": "https://lyaudet.eu/laurent/"
+    }
+  ],
+  "require": {
+    "php": ">=8.5",
+  },
+  "autoload": {
+    "psr-4": { "IdiosyncraticMake\\": "src/" }
+  },
+}
