@@ -37,35 +37,36 @@ declare(strict_types=1);
 namespace IdiosyncraticMake;
 
 /**
-The "global/namespace" variable that will contain the targets of your
+The "global/namespace" variable that will contain the rules of your
 Makefile script.
 
 @var array
 */
-$arr_targets = [];
+$arr_rules = [];
 
 
 
 /**
-This function fills the arr_targets global/namespace variable with
+This function fills the arr_rules global/namespace variable with
 a usage syntax that is PHP but can be made close to what you would write
 in a standard Makefile.
 
 @param string $s_target The target name to create.
-@param array $arr_s_dependencies The dependencies to build before.
-@param array $arr_s_commands The commands to execute to build the target.
+@param array $arr_s_prerequisites The prerequisites to build before.
+@param array $arr_s_recipes The recipes to execute to build the target.
 
 @return void
 */
 function make_target(
   string $s_target,
-  array $arr_s_dependencies,
-  array $arr_s_commands,
+  array $arr_s_prerequisites,
+  array $arr_s_recipes,
 ){
-  global $arr_targets;
-  $arr_targets[$s_target] = [
-    "dependencies" => $arr_s_dependencies,
-    "commands" => $arr_s_commands,
+  global $arr_rules;
+  $arr_rules[$s_target] = [
+    "target" => $s_target,
+    "prerequisites" => $arr_s_prerequisites,
+    "recipes" => $arr_s_recipes,
   ];
 }
 
@@ -82,13 +83,13 @@ function build_target(string $s_target, bool $b_verbose = false){
   if($b_verbose){
     echo "Building $s_target...\n";
   }
-  foreach($arr_targets[$s_target]["commands"] as $s_command){
-    $s_command = str_replace(
+  foreach($arr_rules[$s_target]["recipes"] as $s_recipe){
+    $s_recipe = str_replace(
       "$@",
       escapeshellarg($s_target),
-      $s_command,
+      $s_recipe,
     );
-    system($s_command) === false && die("Build failed for $s_target");
+    system($s_recipe) === false && die("Build failed for $s_target");
   }
 }
 
@@ -104,10 +105,10 @@ This function checks if a target needs rebuild.
 function target_needs_rebuild(string $s_target){
   $b_needs_rebuild = !file_exists($s_target);
   if(!$b_needs_rebuild){
-    foreach($arr_targets[$s_target]["dependencies"] as $s_dependency){
+    foreach($arr_rules[$s_target]["prerequisites"] as $s_prerequisite){
       if(
-        !file_exists($s_dependency)
-        || filemtime($s_dependency) > filemtime($s_target)
+        !file_exists($s_prerequisite)
+        || filemtime($s_prerequisite) > filemtime($s_target)
       ){
         $b_needs_rebuild = true;
         break;
@@ -120,19 +121,19 @@ function target_needs_rebuild(string $s_target){
 
 /**
 This function builds one of the registered targets,
-but builds its dependencies first if needed.
+but builds its prerequisites first if needed.
 
 @param string $s_target The target to build.
 
 @return void
 */
-function build_target_with_dependencies(
+function build_target_with_prerequisites(
   string $s_target,
   bool $b_verbose = false,
 ){
-  foreach($arr_targets[$s_target]["dependencies"] as $s_dependency){
-    if(target_needs_rebuild($s_dependency)){
-      build_target_with_dependencies($s_dependency, $b_verbose);
+  foreach($arr_rules[$s_target]["prerequisites"] as $s_prerequisite){
+    if(target_needs_rebuild($s_prerequisite)){
+      build_target_with_prerequisites($s_prerequisite, $b_verbose);
     }
   }
   if(target_needs_rebuild($s_target)){
@@ -156,9 +157,9 @@ plus the possibility that PHP adds on top of it.
 @return void
 */
 function make($argc, $argv){
-  global $arr_targets;
-  foreach($arr_targets as $s_target => $arr_rule){
-    build_target_with_dependencies($s_target);
+  global $arr_rules;
+  foreach($arr_rules as $s_target => $arr_rule){
+    build_target_with_prerequisites($s_target);
   }
 }
 ?>
