@@ -64,6 +64,17 @@ function make_target(
   bool $b_default_goal = false,
 ){
   global $arr_rules;
+
+  // Implicit rules
+  // The rule for default build of .o from .c.
+  if(count($arr_s_commands) === 0 && str_ends_with($s_target, ".o")){
+    $s_usual_prerequisite = substr($s_target, 0, -2).".c";
+    if(!in_array($s_usual_prerequisite, $arr_s_prerequisites, true)){
+      $arr_s_prerequisites []= $s_usual_prerequisite;
+    }
+    $arr_s_commands = "cc -c ".$s_usual_prerequisite." -o ".$s_target;
+  }
+
   $arr_rules[$s_target] = [
     "target" => $s_target,
     "prerequisites" => $arr_s_prerequisites,
