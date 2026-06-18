@@ -43,6 +43,8 @@ Makefile script.
 @var array
 */
 $arr_rules = [];
+//@TODO Multiple rules per target (implicit, splitting prerequisites,
+// or merging of rules with same target, same commands for simplest cases).
 
 
 
@@ -68,6 +70,48 @@ class Configuration{
 
 
 /**
+This "protected" function adds a rule to arr_rules dealing with some
+deduplication techniques.
+
+@param string $s_target The target name.
+@param array $arr_rule The rule to add.
+
+@return void
+*/
+public function add_rule_to_target($s_target, $arr_rule){
+  global $arr_rules;
+  if(isset($arr_rules[$s_target])){
+    $rule = $arr_rules[$s_target];
+    $i_max = count($rule["recipe"]);
+    if(count($arr_rule["recipe"]) !== $i_max){
+      continue;
+    }
+    for($i = 0; $i < $i_max; ++$i){
+      if($arr_rule["recipe"][$i] !== $rule["recipe"][$i]){
+        break;
+      }
+    }
+    if($i === $i_max){
+      // Both existing rule and the new one have the same recipe.
+      // We merge the prerequisites.
+      $arr_prerequisites = array_merge(
+        $arr_rule["prerequisites"],
+        $rule["prerequisites"],
+      );
+      $rule["prerequisites"] = $arr_prerequisites;
+      return;
+    }
+    throw new \Exception(
+      "You cannot define multiple rules for the same target $s_target"
+      ." that don't agree on the recipe."
+    );
+  }
+  $arr_rules[$s_target] = $arr_rule;
+}
+
+
+
+/**
 This function fills the arr_rules global/namespace variable with
 a usage syntax that is PHP but can be made close to what you would write
 in a standard Makefile.
@@ -88,7 +132,6 @@ function create_makefile_rule(
   array $arr_s_commands,
   bool $b_default_goal = false,
 ){
-  global $arr_rules;
   global $b_allow_one_recipe_multiple_targets;
 
   if(!is_array($target)){
@@ -122,12 +165,15 @@ function create_makefile_rule(
       }
     }
 
-    $arr_rules[$s_target] = [
-      "target" => $s_target,
-      "prerequisites" => $arr_s_prerequisites,
-      "recipe" => $arr_s_commands,
-      "default_goal" => $b_default_goal,
-    ];
+    add_rule_to_target(
+      $s_target,
+      [
+        "target" => $s_target,
+        "prerequisites" => $arr_s_prerequisites,
+        "recipe" => $arr_s_commands,
+        "default_goal" => $b_default_goal,
+      ]
+    );
   }
 }
 
