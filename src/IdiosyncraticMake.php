@@ -46,27 +46,67 @@ $arr_rules = [];
 
 
 
+
+class Configuration{
+
+  /**
+  The variable that allows to define rules
+  that are identic for distinct targets.
+  Assume that two files are the by-product of the same recipe,
+  and that you may need one of these files without needing the other.
+  Or that you want to have a few aliases to some phony rules.
+  Then set this variable to true,
+  and IdiosyncraticMake will not throw an Exception when you define
+  rules with multiple targets outside of cases allowed by GNU make.
+
+  @var bool
+  */
+  public static $b_allow_one_recipe_multiple_targets = false;
+}
+
+
+
+
 /**
 This function fills the arr_rules global/namespace variable with
 a usage syntax that is PHP but can be made close to what you would write
 in a standard Makefile.
+Note that implicit rules allow to create multiple rules with a single call
+to this function.
 
 @param string|array $target The target name to create.
 @param array $arr_s_prerequisites The prerequisites to build before.
 @param array $arr_s_commands The commands to execute to build the target.
 
+@throws \Exception If rule is not valid.
+
 @return void
 */
-function make_target(
+function create_makefile_rule(
   string|array $target,
   array $arr_s_prerequisites,
   array $arr_s_commands,
   bool $b_default_goal = false,
 ){
   global $arr_rules;
+  global $b_allow_one_recipe_multiple_targets;
 
   if(!is_array($target)){
     $target = [$target];
+  }
+
+  if(
+    count($arr_s_commands) > 0
+    && count($target) > 1
+    && !$b_allow_one_recipe_multiple_targets
+  ){
+    throw new \Exception(
+      "Rule with targets ".implode(" ", $target)." is not an implicit rule"
+      .", and hence is not allowed when compatible with GNU make."
+      ." Set IdiosyncraticMake\Configuration::"
+      ."\$b_allow_one_recipe_multiple_targets = true;"
+      ." if you do need this feature."
+    );
   }
 
   foreach($target as $s_target){
