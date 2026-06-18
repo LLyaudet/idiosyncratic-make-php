@@ -50,6 +50,14 @@ $arr_rules = [];
 
 
 class Configuration{
+  // À la GNU Make, concatenate prerequisites if empty recipes
+  const I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES = 1;
+  // Concatenate prerequisites if recipe agree
+  const I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IF_SAME_RECIPE = 2;
+  // Throw an Exception
+  const I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW = 3;
+  // Concatenate prerequisites and recipes
+  const I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW = 4;
 
   /**
   The variable that allows to define rules
@@ -64,6 +72,14 @@ class Configuration{
   @var bool
   */
   public static $b_allow_one_recipe_multiple_targets = false;
+
+  /**
+  The variable that allows to define multiple rules for the same target.
+  @var int
+  */
+  public static $i_multiple_rules_for_one_target = (
+    self::I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES
+  );
 }
 
 
@@ -81,30 +97,77 @@ deduplication techniques.
 public function add_rule_to_target($s_target, $arr_rule){
   global $arr_rules;
   if(isset($arr_rules[$s_target])){
+    if(
+      Configuration::$i_multiple_rules_for_one_target
+      === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW
+    ){
+      throw new \Exception(
+        "Only one rule is allowed for the same target ".$s_target
+        ." Set IdiosyncraticMake\Configuration::"
+        ."\$i_multiple_rules_for_one_target to some other value"
+        ." if needed."
+      );
+    }
     $rule = $arr_rules[$s_target];
     $i_max = count($rule["recipe"]);
     if(count($arr_rule["recipe"]) !== $i_max){
-      continue;
-    }
-    for($i = 0; $i < $i_max; ++$i){
-      if($arr_rule["recipe"][$i] !== $rule["recipe"][$i]){
-        break;
+      if(
+        Configuration::$i_multiple_rules_for_one_target
+        !== Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
+      ){
+        throw new \Exception(
+          "Only multiple rules with same recipe (empty or not)"
+          ." are allowed for the same target ".$s_target
+          ." Set IdiosyncraticMake\Configuration::"
+          ."\$i_multiple_rules_for_one_target to some other value"
+          ." if needed."
+        );
       }
     }
-    if($i === $i_max){
-      // Both existing rule and the new one have the same recipe.
-      // We merge the prerequisites.
-      $arr_prerequisites = array_merge(
-        $arr_rule["prerequisites"],
-        $rule["prerequisites"],
-      );
-      $rule["prerequisites"] = $arr_prerequisites;
-      return;
+    else{
+      for($i = 0; $i < $i_max; ++$i){
+        if($arr_rule["recipe"][$i] !== $rule["recipe"][$i]){
+          break;
+        }
+      }
     }
-    throw new \Exception(
-      "You cannot define multiple rules for the same target $s_target"
-      ." that don't agree on the recipe."
+    if(
+      $i_max > 0
+      && Configuration::$i_multiple_rules_for_one_target
+      ===
+  Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES
+    ){
+      throw new \Exception(
+        "Only multiple implicit rules with empty recipe"
+        ." are allowed for the same target ".$s_target
+        ." Set IdiosyncraticMake\Configuration::"
+        ."\$i_multiple_rules_for_one_target to some other value"
+        ." if needed."
+      );
+    }
+
+    if(
+      Configuration::$i_multiple_rules_for_one_target
+      === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
+    ){
+      // We concatenate the recipes.
+      $rule["prerequisites"] += $arr_rule["prerequisites"];
+    }
+    elseif($i !== $i_max){  // Always false when empty (i_max === 0)
+      throw new \Exception(
+        "Only multiple rules with same recipe"
+        ." are allowed for the same target ".$s_target
+        ." Set IdiosyncraticMake\Configuration::"
+        ."\$i_multiple_rules_for_one_target to some other value"
+        ." if needed."
+      );
+    }
+    // We merge the prerequisites.
+    $arr_prerequisites = array_merge(
+      $rule["prerequisites"],
+      $arr_rule["prerequisites"],
     );
+    $rule["prerequisites"] = $arr_prerequisites;
   }
   $arr_rules[$s_target] = $arr_rule;
 }
@@ -132,8 +195,6 @@ function create_makefile_rule(
   array $arr_s_commands,
   bool $b_default_goal = false,
 ){
-  global $b_allow_one_recipe_multiple_targets;
-
   if(!is_array($target)){
     $target = [$target];
   }
@@ -141,7 +202,7 @@ function create_makefile_rule(
   if(
     count($arr_s_commands) > 0
     && count($target) > 1
-    && !$b_allow_one_recipe_multiple_targets
+    && !Configuration::$b_allow_one_recipe_multiple_targets
   ){
     throw new \Exception(
       "Rule with targets ".implode(" ", $target)." is not an implicit rule"
@@ -154,6 +215,11 @@ function create_makefile_rule(
 
   foreach($target as $s_target){
     // Implicit rules
+    // @TODO multiple implicit rules may apply at execution.
+    // $arr_s_commands should remain empty, and be handled by
+    // implicit rules mechanism after that.
+    // Code below should just be replaced by some check that at least one
+    // implicit rule could apply.
     // The rule for default build of .o from .c.
     if(count($arr_s_commands) === 0){
       if(str_ends_with($s_target, ".o")){
