@@ -51,36 +51,44 @@ This function fills the arr_rules global/namespace variable with
 a usage syntax that is PHP but can be made close to what you would write
 in a standard Makefile.
 
-@param string $s_target The target name to create.
+@param string|array $target The target name to create.
 @param array $arr_s_prerequisites The prerequisites to build before.
 @param array $arr_s_commands The commands to execute to build the target.
 
 @return void
 */
 function make_target(
-  string $s_target,
+  string|array $target,
   array $arr_s_prerequisites,
   array $arr_s_commands,
   bool $b_default_goal = false,
 ){
   global $arr_rules;
 
-  // Implicit rules
-  // The rule for default build of .o from .c.
-  if(count($arr_s_commands) === 0 && str_ends_with($s_target, ".o")){
-    $s_usual_prerequisite = substr($s_target, 0, -2).".c";
-    if(!in_array($s_usual_prerequisite, $arr_s_prerequisites, true)){
-      $arr_s_prerequisites []= $s_usual_prerequisite;
-    }
-    $arr_s_commands = "cc -c ".$s_usual_prerequisite." -o ".$s_target;
+  if(!is_array($target)){
+    $target = [$target];
   }
 
-  $arr_rules[$s_target] = [
-    "target" => $s_target,
-    "prerequisites" => $arr_s_prerequisites,
-    "recipe" => $arr_s_commands,
-    "default_goal" => $b_default_goal,
-  ];
+  foreach($target as $s_target){
+    // Implicit rules
+    // The rule for default build of .o from .c.
+    if(count($arr_s_commands) === 0){
+      if(str_ends_with($s_target, ".o")){
+        $s_usual_prerequisite = substr($s_target, 0, -2).".c";
+        if(!in_array($s_usual_prerequisite, $arr_s_prerequisites, true)){
+          $arr_s_prerequisites []= $s_usual_prerequisite;
+        }
+        $arr_s_commands = "cc -c ".$s_usual_prerequisite." -o ".$s_target;
+      }
+    }
+
+    $arr_rules[$s_target] = [
+      "target" => $s_target,
+      "prerequisites" => $arr_s_prerequisites,
+      "recipe" => $arr_s_commands,
+      "default_goal" => $b_default_goal,
+    ];
+  }
 }
 
 
