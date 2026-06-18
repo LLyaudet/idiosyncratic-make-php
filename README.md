@@ -8,6 +8,10 @@ CC=gcc
 CFLAGS=-Wall -WExtra
 CFLAGS2=-Wall -g
 OBJECTS_DIRECTORY=build/
+OBJECTS=$(OBJECTS_DIRECTORY)my_C_file.o $(OBJECTS_DIRECTORY)my_C_file2.o
+
+bin/my_program.exe: $(OBJECTS)
+  $(CC) $(CFLAGS) -o $@ $(OBJECTS)
 
 $(OBJECTS_DIRECTORY)my_C_file.o: my_C_file.c
   $(CC) $(CFLAGS) -c my_C_file.c -o $@
@@ -29,6 +33,18 @@ use IdiosyncraticMake;
 $CC = "gcc";
 $CFLAGS = ["-Wall", "-WExtra"];
 $CFLAGS2 = "-Wall -g";
+$OBJECTS_DIRECTORY = "build/";
+$OBJECTS = [
+  $OBJECTS_DIRECTORY."my_C_file.o",
+  $OBJECTS_DIRECTORY."my_C_file2.o",
+];
+
+make_target(
+  "bin/my_program.exe",
+  $OBJECTS,
+  [$CC." ".implode(" ", $CFLAGS)." -o $@ ".implode(" ", $OBJECTS)],
+  default_goal: true,
+)
 
 make_target(
   $OBJECTS_DIRECTORY."my_C_file.o",

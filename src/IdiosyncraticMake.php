@@ -53,20 +53,22 @@ in a standard Makefile.
 
 @param string $s_target The target name to create.
 @param array $arr_s_prerequisites The prerequisites to build before.
-@param array $arr_s_recipes The recipes to execute to build the target.
+@param array $arr_s_commands The commands to execute to build the target.
 
 @return void
 */
 function make_target(
   string $s_target,
   array $arr_s_prerequisites,
-  array $arr_s_recipes,
+  array $arr_s_commands,
+  bool $b_default_goal = false,
 ){
   global $arr_rules;
   $arr_rules[$s_target] = [
     "target" => $s_target,
     "prerequisites" => $arr_s_prerequisites,
-    "recipes" => $arr_s_recipes,
+    "recipe" => $arr_s_commands,
+    "default_goal" => $b_default_goal,
   ];
 }
 
@@ -83,13 +85,13 @@ function build_target(string $s_target, bool $b_verbose = false){
   if($b_verbose){
     echo "Building $s_target...\n";
   }
-  foreach($arr_rules[$s_target]["recipes"] as $s_recipe){
-    $s_recipe = str_replace(
+  foreach($arr_rules[$s_target]["recipe"] as $s_command){
+    $s_command = str_replace(
       "$@",
       escapeshellarg($s_target),
-      $s_recipe,
+      $s_command,
     );
-    system($s_recipe) === false && die("Build failed for $s_target");
+    system($s_command) === false && die("Build failed for $s_target");
   }
 }
 
@@ -159,7 +161,9 @@ plus the possibility that PHP adds on top of it.
 function make($argc, $argv){
   global $arr_rules;
   foreach($arr_rules as $s_target => $arr_rule){
-    build_target_with_prerequisites($s_target);
+    if($arr_rule["default_goal"]){
+      build_target_with_prerequisites($s_target);
+    }
   }
 }
 ?>
