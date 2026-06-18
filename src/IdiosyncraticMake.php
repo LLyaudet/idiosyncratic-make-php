@@ -74,6 +74,9 @@ class Configuration{
 
   public static $b_exception_if_MRFOT_with_distinct_default_goal = false;
   public static $b_exception_if_MRFOT_with_distinct_phony = false;
+
+  // GNU make behavior by default
+  public static $b_allow_only_one_default_goal = true;
 }
 
 
@@ -212,7 +215,7 @@ class IdiosyncraticMake{
 
 
 /**
-This function fills the variable IdiosyncraticMakefile::$arr_rules with
+This function fills the variable IdiosyncraticMake::$arr_rules with
 a usage syntax that is PHP but can be made close to what you would write
 in a standard Makefile.
 Note that implicit rules allow to create multiple rules with a single call
@@ -296,7 +299,7 @@ function build_target(string $s_target, bool $b_verbose = false){
     echo "Building $s_target...\n";
   }
   foreach(
-    IdiosyncraticMakefile::$arr_rules[$s_target]["recipe"] as $s_command
+    IdiosyncraticMake::$arr_rules[$s_target]["recipe"] as $s_command
   ){
     $s_command = str_replace(
       "$@",
@@ -320,7 +323,7 @@ function target_needs_rebuild(string $s_target){
   $b_needs_rebuild = !file_exists($s_target);
   if(!$b_needs_rebuild){
     foreach(
-      IdiosyncraticMakefile::$arr_rules[$s_target]["prerequisites"]
+      IdiosyncraticMake::$arr_rules[$s_target]["prerequisites"]
       as $s_prerequisite
     ){
       if(
@@ -349,7 +352,7 @@ function build_target_with_prerequisites(
   bool $b_verbose = false,
 ){
   foreach(
-    IdiosyncraticMakefile::$arr_rules[$s_target]["prerequisites"]
+    IdiosyncraticMake::$arr_rules[$s_target]["prerequisites"]
     as $s_prerequisite
   ){
     if(target_needs_rebuild($s_prerequisite)){
@@ -374,10 +377,42 @@ plus the possibility that PHP adds on top of it.
 @param int $argc The number of command line arguments.
 @param array $argv The command line arguments.
 
+@throw new \Exception If no rule is defined,
+                      or if there are more than one default_goal and
+                        that is forbidden by configuration.
+
 @return void
 */
 function make($argc, $argv){
-  foreach(IdiosyncraticMakefile::$arr_rules as $s_target => $arr_rule){
+  if(count(IdiosyncraticMake::$arr_rules) === 0){
+    throw new \Exception("No rule for IdiosyncraticMake was defined.");
+  }
+
+  $i_default_goals_nb = 0;
+  foreach(IdiosyncraticMake::$arr_rules as $s_target => $arr_rule){
+    if($arr_rule["default_goal"]){
+      ++$i_default_goals_nb;
+    }
+  }
+  if($i_default_goals_nb === 0){
+    IdiosyncraticMake::$arr_rules[
+      array_key_first(IdiosyncraticMake::$arr_rules)
+    ]["default_goal"] = true;
+  }
+
+  if(
+    Configuration::$b_allow_only_one_default_goal
+    && $i_default_goals_nb > 1
+  ){
+    throw new \Exception(
+      "More than one rule with default_goal was defined."
+      ." Set IdiosyncraticMake\Configuration::"
+      ."\$b_allow_only_one_default_goal"
+      ." to some other value if needed."
+    );
+  }
+
+  foreach(IdiosyncraticMake::$arr_rules as $s_target => $arr_rule){
     if($arr_rule["default_goal"]){
       build_target_with_prerequisites($s_target);
     }
