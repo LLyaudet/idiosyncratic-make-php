@@ -40,14 +40,15 @@ namespace IdiosyncraticMake;
 
 
 class Configuration{
+  // MRFOT stands for MULTIPLE_RULES_FOR_ONE_TARGET
   // À la GNU Make, merge prerequisites if empty recipes
-  const I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES = 1;
+  const I_MRFOT__ONLY_ALLOW_IMPLICIT_RULES = 1;
   // Merge prerequisites if recipe agree
-  const I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IF_SAME_RECIPE = 2;
+  const I_MRFOT__ONLY_ALLOW_IF_SAME_RECIPE = 2;
   // Throw an Exception
-  const I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW = 3;
+  const I_MRFOT__NEVER_ALLOW = 3;
   // Merge prerequisites and concatenate recipes
-  const I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW = 4;
+  const I_MRFOT__ALWAYS_ALLOW = 4;
 
   /**
   The variable that allows to define rules
@@ -65,11 +66,14 @@ class Configuration{
 
   /**
   The variable that allows to define multiple rules for the same target.
+  MRFOT stands for MULTIPLE_RULES_FOR_ONE_TARGET
+
   @var int
   */
-  public static $i_multiple_rules_for_one_target = (
-    self::I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES
-  );
+  public static $i_MRFOT = self::I_MRFOT__ONLY_ALLOW_IMPLICIT_RULES;
+
+  public static $b_exception_if_MRFOT_with_distinct_default_goal = false;
+  public static $b_exception_if_MRFOT_with_distinct_phony = false;
 }
 
 
@@ -103,14 +107,11 @@ class IdiosyncraticMake{
   */
   public function add_rule_to_target($s_target, $arr_rule){
     if(isset(self::$arr_rules[$s_target])){
-      if(
-        Configuration::$i_multiple_rules_for_one_target
-        === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW
-      ){
+      if(Configuration::$i_MRFOT === Configuration::I_MRFOT__NEVER_ALLOW){
         throw new \Exception(
           "Only one rule is allowed for the same target ".$s_target
           ." Set IdiosyncraticMake\Configuration::"
-          ."\$i_multiple_rules_for_one_target to some other value"
+          ."\$i_MRFOT to some other value"
           ." if needed."
         );
       }
@@ -118,14 +119,13 @@ class IdiosyncraticMake{
       $i_max = count($rule["recipe"]);
       if(count($arr_rule["recipe"]) !== $i_max){
         if(
-          Configuration::$i_multiple_rules_for_one_target
-          !== Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
+          Configuration::$i_MRFOT !== Configuration::I_MRFOT__ALWAYS_ALLOW
         ){
           throw new \Exception(
             "Only multiple rules with same recipe (empty or not)"
             ." are allowed for the same target ".$s_target
             ." Set IdiosyncraticMake\Configuration::"
-            ."\$i_multiple_rules_for_one_target to some other value"
+            ."\$i_MRFOT to some other value"
             ." if needed."
           );
         }
@@ -139,23 +139,19 @@ class IdiosyncraticMake{
       }
       if(
         $i_max > 0
-        && Configuration::$i_multiple_rules_for_one_target
-        ===
-  Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES
+        && Configuration::$i_MRFOT
+        === Configuration::I_MRFOT__ONLY_ALLOW_IMPLICIT_RULES
       ){
         throw new \Exception(
           "Only multiple implicit rules with empty recipe"
           ." are allowed for the same target ".$s_target
           ." Set IdiosyncraticMake\Configuration::"
-          ."\$i_multiple_rules_for_one_target to some other value"
+          ."\$i_MRFOT to some other value"
           ." if needed."
         );
       }
 
-      if(
-        Configuration::$i_multiple_rules_for_one_target
-        === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
-      ){
+      if(Configuration::$i_MRFOT === Configuration::I_MRFOT__ALWAYS_ALLOW){
         // We concatenate the recipes.
         $rule["prerequisites"] += $arr_rule["prerequisites"];
       }
@@ -164,7 +160,7 @@ class IdiosyncraticMake{
           "Only multiple rules with same recipe"
           ." are allowed for the same target ".$s_target
           ." Set IdiosyncraticMake\Configuration::"
-          ."\$i_multiple_rules_for_one_target to some other value"
+          ."\$i_MRFOT to some other value"
           ." if needed."
         );
       }
@@ -174,6 +170,39 @@ class IdiosyncraticMake{
         $arr_rule["prerequisites"],
       );
       $rule["prerequisites"] = $arr_prerequisites;
+      if(
+        Configuration::$b_exception_if_MRFOT_with_distinct_default_goal
+        && $rule["default_goal"] !== $arr_rule["default_goal"]
+      ){
+        throw new \Exception(
+          "Multiple rules for the same target ".$s_target
+          ." disagree on the value of default_goal."
+          ." Set IdiosyncraticMake\Configuration::"
+          ."\$b_exception_if_MRFOT_with_distinct_default_goal"
+          ." to some other value if needed."
+        );
+      }
+      if(
+        Configuration::$b_exception_if_MRFOT_with_distinct_phony
+        && $rule["phony"] !== $arr_rule["phony"]
+      ){
+        throw new \Exception(
+          "Multiple rules for the same target ".$s_target
+          ." disagree on the value of phony."
+          ." Set IdiosyncraticMake\Configuration::"
+          ."\$b_exception_if_MRFOT_with_distinct_phony"
+          ." to some other value if needed."
+        );
+      }
+      $rule["default_goal"] = (
+        $rule["default_goal"]
+        || $arr_rule["default_goal"]
+      );
+      $rule["phony"] = (
+        $rule["phony"]
+        || $arr_rule["phony"]
+      );
+      return;
     }
     self::$arr_rules[$s_target] = $arr_rule;
   }
@@ -202,6 +231,7 @@ function create_makefile_rule(
   array $arr_s_prerequisites,
   array $arr_s_commands,
   bool $b_default_goal = false,
+  bool $b_phony = false,
 ){
   if(!is_array($target)){
     $target = [$target];
@@ -246,6 +276,7 @@ function create_makefile_rule(
         "prerequisites" => $arr_s_prerequisites,
         "recipe" => $arr_s_commands,
         "default_goal" => $b_default_goal,
+        "phony" => $b_phony,
       ]
     );
   }
