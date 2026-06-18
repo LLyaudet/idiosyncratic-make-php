@@ -36,27 +36,17 @@ declare(strict_types=1);
 
 namespace IdiosyncraticMake;
 
-/**
-The "global/namespace" variable that will contain the rules of your
-Makefile script.
-
-@var array
-*/
-$arr_rules = [];
-//@TODO Multiple rules per target (implicit, splitting prerequisites,
-// or merging of rules with same target, same commands for simplest cases).
-
 
 
 
 class Configuration{
-  // À la GNU Make, concatenate prerequisites if empty recipes
+  // À la GNU Make, merge prerequisites if empty recipes
   const I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES = 1;
-  // Concatenate prerequisites if recipe agree
+  // Merge prerequisites if recipe agree
   const I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IF_SAME_RECIPE = 2;
   // Throw an Exception
   const I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW = 3;
-  // Concatenate prerequisites and recipes
+  // Merge prerequisites and concatenate recipes
   const I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW = 4;
 
   /**
@@ -85,97 +75,115 @@ class Configuration{
 
 
 
-/**
-This "protected" function adds a rule to arr_rules dealing with some
-deduplication techniques.
+class IdiosyncraticMake{
+  // @TODO weight the pros and cons of static vs object.
+  // But I prefer a class for the configuration above.
+  // And I prefer static because otherwise the key functions calls,
+  // like create_makefile_rule() in the Makefile/PHP Frankenstein's script
+  // will be more verbose. WIP.
 
-@param string $s_target The target name.
-@param array $arr_rule The rule to add.
+  /**
+  The variable that will contain the rules of your
+  Makefile script.
 
-@return void
-*/
-public function add_rule_to_target($s_target, $arr_rule){
-  global $arr_rules;
-  if(isset($arr_rules[$s_target])){
-    if(
-      Configuration::$i_multiple_rules_for_one_target
-      === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW
-    ){
-      throw new \Exception(
-        "Only one rule is allowed for the same target ".$s_target
-        ." Set IdiosyncraticMake\Configuration::"
-        ."\$i_multiple_rules_for_one_target to some other value"
-        ." if needed."
-      );
-    }
-    $rule = $arr_rules[$s_target];
-    $i_max = count($rule["recipe"]);
-    if(count($arr_rule["recipe"]) !== $i_max){
+  @var array
+  */
+  public static $arr_rules = [];
+
+
+
+  /**
+  This "technical" function adds a rule to arr_rules dealing with some
+  deduplication techniques.
+
+  @param string $s_target The target name.
+  @param array $arr_rule The rule to add.
+
+  @return void
+  */
+  public function add_rule_to_target($s_target, $arr_rule){
+    if(isset(self::$arr_rules[$s_target])){
       if(
         Configuration::$i_multiple_rules_for_one_target
-        !== Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
+        === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__NEVER_ALLOW
       ){
         throw new \Exception(
-          "Only multiple rules with same recipe (empty or not)"
+          "Only one rule is allowed for the same target ".$s_target
+          ." Set IdiosyncraticMake\Configuration::"
+          ."\$i_multiple_rules_for_one_target to some other value"
+          ." if needed."
+        );
+      }
+      $rule = self::$arr_rules[$s_target];
+      $i_max = count($rule["recipe"]);
+      if(count($arr_rule["recipe"]) !== $i_max){
+        if(
+          Configuration::$i_multiple_rules_for_one_target
+          !== Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
+        ){
+          throw new \Exception(
+            "Only multiple rules with same recipe (empty or not)"
+            ." are allowed for the same target ".$s_target
+            ." Set IdiosyncraticMake\Configuration::"
+            ."\$i_multiple_rules_for_one_target to some other value"
+            ." if needed."
+          );
+        }
+      }
+      else{
+        for($i = 0; $i < $i_max; ++$i){
+          if($arr_rule["recipe"][$i] !== $rule["recipe"][$i]){
+            break;
+          }
+        }
+      }
+      if(
+        $i_max > 0
+        && Configuration::$i_multiple_rules_for_one_target
+        ===
+  Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES
+      ){
+        throw new \Exception(
+          "Only multiple implicit rules with empty recipe"
           ." are allowed for the same target ".$s_target
           ." Set IdiosyncraticMake\Configuration::"
           ."\$i_multiple_rules_for_one_target to some other value"
           ." if needed."
         );
       }
-    }
-    else{
-      for($i = 0; $i < $i_max; ++$i){
-        if($arr_rule["recipe"][$i] !== $rule["recipe"][$i]){
-          break;
-        }
-      }
-    }
-    if(
-      $i_max > 0
-      && Configuration::$i_multiple_rules_for_one_target
-      ===
-  Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ONLY_ALLOW_IMPLICIT_RULES
-    ){
-      throw new \Exception(
-        "Only multiple implicit rules with empty recipe"
-        ." are allowed for the same target ".$s_target
-        ." Set IdiosyncraticMake\Configuration::"
-        ."\$i_multiple_rules_for_one_target to some other value"
-        ." if needed."
-      );
-    }
 
-    if(
-      Configuration::$i_multiple_rules_for_one_target
-      === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
-    ){
-      // We concatenate the recipes.
-      $rule["prerequisites"] += $arr_rule["prerequisites"];
-    }
-    elseif($i !== $i_max){  // Always false when empty (i_max === 0)
-      throw new \Exception(
-        "Only multiple rules with same recipe"
-        ." are allowed for the same target ".$s_target
-        ." Set IdiosyncraticMake\Configuration::"
-        ."\$i_multiple_rules_for_one_target to some other value"
-        ." if needed."
+      if(
+        Configuration::$i_multiple_rules_for_one_target
+        === Configuration::I_MULTIPLE_RULES_FOR_ONE_TARGET__ALWAYS_ALLOW
+      ){
+        // We concatenate the recipes.
+        $rule["prerequisites"] += $arr_rule["prerequisites"];
+      }
+      elseif($i !== $i_max){  // Always false when empty (i_max === 0)
+        throw new \Exception(
+          "Only multiple rules with same recipe"
+          ." are allowed for the same target ".$s_target
+          ." Set IdiosyncraticMake\Configuration::"
+          ."\$i_multiple_rules_for_one_target to some other value"
+          ." if needed."
+        );
+      }
+      // We merge the prerequisites.
+      $arr_prerequisites = array_merge(
+        $rule["prerequisites"],
+        $arr_rule["prerequisites"],
       );
+      $rule["prerequisites"] = $arr_prerequisites;
     }
-    // We merge the prerequisites.
-    $arr_prerequisites = array_merge(
-      $rule["prerequisites"],
-      $arr_rule["prerequisites"],
-    );
-    $rule["prerequisites"] = $arr_prerequisites;
+    self::$arr_rules[$s_target] = $arr_rule;
   }
-  $arr_rules[$s_target] = $arr_rule;
 }
 
 
 
+
 /**
-This function fills the arr_rules global/namespace variable with
+This function fills the variable IdiosyncraticMakefile::$arr_rules with
 a usage syntax that is PHP but can be made close to what you would write
 in a standard Makefile.
 Note that implicit rules allow to create multiple rules with a single call
@@ -256,7 +264,9 @@ function build_target(string $s_target, bool $b_verbose = false){
   if($b_verbose){
     echo "Building $s_target...\n";
   }
-  foreach($arr_rules[$s_target]["recipe"] as $s_command){
+  foreach(
+    IdiosyncraticMakefile::$arr_rules[$s_target]["recipe"] as $s_command
+  ){
     $s_command = str_replace(
       "$@",
       escapeshellarg($s_target),
@@ -278,7 +288,10 @@ This function checks if a target needs rebuild.
 function target_needs_rebuild(string $s_target){
   $b_needs_rebuild = !file_exists($s_target);
   if(!$b_needs_rebuild){
-    foreach($arr_rules[$s_target]["prerequisites"] as $s_prerequisite){
+    foreach(
+      IdiosyncraticMakefile::$arr_rules[$s_target]["prerequisites"]
+      as $s_prerequisite
+    ){
       if(
         !file_exists($s_prerequisite)
         || filemtime($s_prerequisite) > filemtime($s_target)
@@ -304,7 +317,10 @@ function build_target_with_prerequisites(
   string $s_target,
   bool $b_verbose = false,
 ){
-  foreach($arr_rules[$s_target]["prerequisites"] as $s_prerequisite){
+  foreach(
+    IdiosyncraticMakefile::$arr_rules[$s_target]["prerequisites"]
+    as $s_prerequisite
+  ){
     if(target_needs_rebuild($s_prerequisite)){
       build_target_with_prerequisites($s_prerequisite, $b_verbose);
     }
@@ -330,8 +346,7 @@ plus the possibility that PHP adds on top of it.
 @return void
 */
 function make($argc, $argv){
-  global $arr_rules;
-  foreach($arr_rules as $s_target => $arr_rule){
+  foreach(IdiosyncraticMakefile::$arr_rules as $s_target => $arr_rule){
     if($arr_rule["default_goal"]){
       build_target_with_prerequisites($s_target);
     }
